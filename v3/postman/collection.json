@@ -44,8 +44,13 @@
 									"type": "text"
 								},
 								{
+									"key": "audience",
+									"value": "{{audience}}",
+									"type": "text"
+								},
+								{
 									"key": "scope",
-									"value": "openid",
+									"value": "openid profile email",
 									"type": "text"
 								},
 								{
