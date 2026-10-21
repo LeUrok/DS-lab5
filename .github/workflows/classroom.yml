@@ -101,6 +101,13 @@ jobs:
         with:
           collection: v3/postman/collection.json
           environment: v3/postman/environment.json
+          envVar: |
+            serviceUrl=http://37.44.197.42
+            identityProviderUrl=https://dev-kxjywchogh6bt5jw.us.auth0.com
+            username=test@example.com
+            password=${{ secrets.AUTH0_PASSWORD }}
+            clientId=WFbON1QQBRIDcycWgTFJIir8qe0LqOQi
+            clientSecret=${{ secrets.AUTH0_CLIENT_SECRET }}
           delayRequest: 100
           reporters: '[ "cli" ]'
 
@@ -117,4 +124,3 @@ jobs:
           user_column: 'D'
           column_offset: 'F'
           mark: "'+"
-          
