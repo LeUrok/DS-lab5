@@ -1032,10 +1032,6 @@
 		{
 			"key": "dateTo",
 			"value": ""
-		},
-		{
-			"key": "authorizationToken",
-			"value": ""
 		}
 	]
 }
