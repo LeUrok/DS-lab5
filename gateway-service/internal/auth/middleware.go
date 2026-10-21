@@ -12,7 +12,10 @@ import (
 
 type ctxKey string
 
-const UsernameKey ctxKey = "username"
+const (
+	UsernameKey ctxKey = "username"
+	TokenKey    ctxKey = "token"
+)
 
 var ErrUnauthorized = errors.New("unauthorized")
 
@@ -28,7 +31,6 @@ func NewMiddleware(ctx context.Context, issuer, jwksURL, audience string) (*Midd
 	if err := cache.Register(jwksURL); err != nil {
 		return nil, err
 	}
-
 	if _, err := cache.Get(ctx, jwksURL); err != nil {
 		return nil, err
 	}
@@ -73,12 +75,20 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		}
 
 		ctx := context.WithValue(r.Context(), UsernameKey, username.(string))
+		ctx = context.WithValue(ctx, TokenKey, tokenString)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func UsernameFromContext(ctx context.Context) string {
 	if v, ok := ctx.Value(UsernameKey).(string); ok {
+		return v
+	}
+	return ""
+}
+
+func TokenFromContext(ctx context.Context) string {
+	if v, ok := ctx.Value(TokenKey).(string); ok {
 		return v
 	}
 	return ""

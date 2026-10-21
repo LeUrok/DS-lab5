@@ -23,10 +23,10 @@ func NewPaymentClient(baseURL string) *PaymentClient {
 		baseURL: baseURL,
 		http:    &http.Client{Timeout: 5 * time.Second},
 		breaker: circuitbreaker.NewTimestampBreaker(circuitbreaker.WindowConfig{
-			WindowSize:     60,               
-			MaxFailures: 0.5,              
-			MinRequests:    10,               
-			ResetTimeout:   10 * time.Second, 
+			WindowSize:     60,
+			MaxFailures:    0.5,
+			MinRequests:    10,
+			ResetTimeout:   10 * time.Second,
 		}),
 	}
 }
@@ -41,7 +41,7 @@ type CreatePaymentRequest struct {
 	Price int `json:"price"`
 }
 
-func (c *PaymentClient) Create(ctx context.Context, price int) (*PaymentInfo, error) {
+func (c *PaymentClient) Create(ctx context.Context, token string, price int) (*PaymentInfo, error) {
 	if err := c.breaker.Allow(); err != nil {
 		return nil, ErrUnavailable
 	}
@@ -52,6 +52,7 @@ func (c *PaymentClient) Create(ctx context.Context, price int) (*PaymentInfo, er
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -64,7 +65,6 @@ func (c *PaymentClient) Create(ctx context.Context, price int) (*PaymentInfo, er
 		c.breaker.Failure()
 		return nil, ErrUnavailable
 	}
-
 	if resp.StatusCode != http.StatusOK {
 		c.breaker.Success()
 		return nil, fmt.Errorf("payment service returned %d", resp.StatusCode)
@@ -79,7 +79,7 @@ func (c *PaymentClient) Create(ctx context.Context, price int) (*PaymentInfo, er
 	return &p, nil
 }
 
-func (c *PaymentClient) GetByUID(ctx context.Context, uid string) (*PaymentInfo, error) {
+func (c *PaymentClient) GetByUID(ctx context.Context, token, uid string) (*PaymentInfo, error) {
 	if err := c.breaker.Allow(); err != nil {
 		return nil, ErrUnavailable
 	}
@@ -88,6 +88,8 @@ func (c *PaymentClient) GetByUID(ctx context.Context, uid string) (*PaymentInfo,
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
 	resp, err := c.http.Do(req)
 	if err != nil {
 		c.breaker.Failure()
@@ -99,7 +101,6 @@ func (c *PaymentClient) GetByUID(ctx context.Context, uid string) (*PaymentInfo,
 		c.breaker.Failure()
 		return nil, ErrUnavailable
 	}
-
 	if resp.StatusCode == http.StatusNotFound {
 		c.breaker.Success()
 		return nil, ErrNotFound
@@ -118,7 +119,7 @@ func (c *PaymentClient) GetByUID(ctx context.Context, uid string) (*PaymentInfo,
 	return &p, nil
 }
 
-func (c *PaymentClient) Cancel(ctx context.Context, uid string) error {
+func (c *PaymentClient) Cancel(ctx context.Context, token, uid string) error {
 	if err := c.breaker.Allow(); err != nil {
 		return ErrUnavailable
 	}
@@ -127,6 +128,8 @@ func (c *PaymentClient) Cancel(ctx context.Context, uid string) error {
 	if err != nil {
 		return err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
 	resp, err := c.http.Do(req)
 	if err != nil {
 		c.breaker.Failure()
@@ -139,7 +142,6 @@ func (c *PaymentClient) Cancel(ctx context.Context, uid string) error {
 		c.breaker.Failure()
 		return ErrUnavailable
 	}
-
 	if resp.StatusCode == http.StatusNotFound {
 		c.breaker.Success()
 		return ErrNotFound

@@ -21,13 +21,15 @@ type RentalClient struct {
 
 func NewRentalClient(baseURL string) *RentalClient {
 	return &RentalClient{
-		baseURL: baseURL, http: &http.Client{},
+		baseURL: baseURL,
+		http:    &http.Client{Timeout: 5 * time.Second},
 		breaker: circuitbreaker.NewTimestampBreaker(circuitbreaker.WindowConfig{
-			WindowSize:     60,               
-			MaxFailures: 0.5,              
-			MinRequests:    10,               
-			ResetTimeout:   10 * time.Second, 
-		})}
+			WindowSize:     60,
+			MaxFailures:    0.5,
+			MinRequests:    10,
+			ResetTimeout:   10 * time.Second,
+		}),
+	}
 }
 
 type RentalInfo struct {
@@ -48,7 +50,7 @@ type CreateRentalRequest struct {
 	DateTo     string `json:"dateTo"`
 }
 
-func (c *RentalClient) GetByUsername(ctx context.Context, username string) ([]*RentalInfo, error) {
+func (c *RentalClient) GetByUsername(ctx context.Context, token, username string) ([]*RentalInfo, error) {
 	if err := c.breaker.Allow(); err != nil {
 		return nil, ErrUnavailable
 	}
@@ -61,6 +63,8 @@ func (c *RentalClient) GetByUsername(ctx context.Context, username string) ([]*R
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
 	resp, err := c.http.Do(req)
 	if err != nil {
 		c.breaker.Failure()
@@ -72,7 +76,6 @@ func (c *RentalClient) GetByUsername(ctx context.Context, username string) ([]*R
 		c.breaker.Failure()
 		return nil, ErrUnavailable
 	}
-
 	if resp.StatusCode != http.StatusOK {
 		c.breaker.Success()
 		return nil, fmt.Errorf("rental service returned %d", resp.StatusCode)
@@ -87,10 +90,11 @@ func (c *RentalClient) GetByUsername(ctx context.Context, username string) ([]*R
 	return rentals, nil
 }
 
-func (c *RentalClient) GetByUID(ctx context.Context, uid, username string) (*RentalInfo, error) {
+func (c *RentalClient) GetByUID(ctx context.Context, token, uid, username string) (*RentalInfo, error) {
 	if err := c.breaker.Allow(); err != nil {
 		return nil, ErrUnavailable
 	}
+
 	q := url.Values{}
 	q.Set("username", username)
 	u := fmt.Sprintf("%s/api/v1/rental/%s?%s", c.baseURL, uid, q.Encode())
@@ -99,6 +103,8 @@ func (c *RentalClient) GetByUID(ctx context.Context, uid, username string) (*Ren
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
 	resp, err := c.http.Do(req)
 	if err != nil {
 		c.breaker.Failure()
@@ -110,12 +116,7 @@ func (c *RentalClient) GetByUID(ctx context.Context, uid, username string) (*Ren
 		c.breaker.Failure()
 		return nil, ErrUnavailable
 	}
-
-	if resp.StatusCode == http.StatusNotFound {
-		c.breaker.Success()
-		return nil, ErrNotFound
-	}
-	if resp.StatusCode == http.StatusForbidden {
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusForbidden {
 		c.breaker.Success()
 		return nil, ErrNotFound
 	}
@@ -133,16 +134,18 @@ func (c *RentalClient) GetByUID(ctx context.Context, uid, username string) (*Ren
 	return &rental, nil
 }
 
-func (c *RentalClient) Create(ctx context.Context, req CreateRentalRequest) (*RentalInfo, error) {
+func (c *RentalClient) Create(ctx context.Context, token string, req CreateRentalRequest) (*RentalInfo, error) {
 	if err := c.breaker.Allow(); err != nil {
 		return nil, ErrUnavailable
 	}
+
 	body, _ := json.Marshal(req)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/rental", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
@@ -155,7 +158,6 @@ func (c *RentalClient) Create(ctx context.Context, req CreateRentalRequest) (*Re
 		c.breaker.Failure()
 		return nil, ErrUnavailable
 	}
-
 	if resp.StatusCode == http.StatusBadRequest {
 		c.breaker.Success()
 		return nil, ErrBadRequest
@@ -174,14 +176,15 @@ func (c *RentalClient) Create(ctx context.Context, req CreateRentalRequest) (*Re
 	return &rental, nil
 }
 
-func (c *RentalClient) Finish(ctx context.Context, uid, username string) error {
-	return c.postAction(ctx, uid, username, "finish")
+func (c *RentalClient) Finish(ctx context.Context, token, uid, username string) error {
+	return c.postAction(ctx, token, uid, username, "finish")
 }
 
-func (c *RentalClient) Cancel(ctx context.Context, uid, username string) error {
+func (c *RentalClient) Cancel(ctx context.Context, token, uid, username string) error {
 	if err := c.breaker.Allow(); err != nil {
 		return ErrUnavailable
 	}
+
 	q := url.Values{}
 	q.Set("username", username)
 	u := fmt.Sprintf("%s/api/v1/rental/%s?%s", c.baseURL, uid, q.Encode())
@@ -190,6 +193,8 @@ func (c *RentalClient) Cancel(ctx context.Context, uid, username string) error {
 	if err != nil {
 		return err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
 	resp, err := c.http.Do(req)
 	if err != nil {
 		c.breaker.Failure()
@@ -202,7 +207,6 @@ func (c *RentalClient) Cancel(ctx context.Context, uid, username string) error {
 		c.breaker.Failure()
 		return ErrUnavailable
 	}
-
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusForbidden {
 		c.breaker.Success()
 		return ErrNotFound
@@ -219,10 +223,11 @@ func (c *RentalClient) Cancel(ctx context.Context, uid, username string) error {
 	return nil
 }
 
-func (c *RentalClient) postAction(ctx context.Context, uid, username, action string) error {
+func (c *RentalClient) postAction(ctx context.Context, token, uid, username, action string) error {
 	if err := c.breaker.Allow(); err != nil {
 		return ErrUnavailable
 	}
+
 	q := url.Values{}
 	q.Set("username", username)
 	u := fmt.Sprintf("%s/api/v1/rental/%s/%s?%s", c.baseURL, uid, action, q.Encode())
@@ -231,6 +236,8 @@ func (c *RentalClient) postAction(ctx context.Context, uid, username, action str
 	if err != nil {
 		return err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
 	resp, err := c.http.Do(req)
 	if err != nil {
 		c.breaker.Failure()
@@ -243,7 +250,6 @@ func (c *RentalClient) postAction(ctx context.Context, uid, username, action str
 		c.breaker.Failure()
 		return ErrUnavailable
 	}
-
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusForbidden {
 		c.breaker.Success()
 		return ErrNotFound

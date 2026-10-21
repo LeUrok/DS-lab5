@@ -14,18 +14,16 @@ import (
 type CarsClient struct {
 	baseURL string
 	http    *http.Client
-	breaker *circuitbreaker.TimestampBreaker
+	breaker *circuitbreaker.Breaker
 }
 
 func NewCarsClient(baseURL string) *CarsClient {
 	return &CarsClient{
 		baseURL: baseURL,
-		http:    &http.Client{},
-		breaker: circuitbreaker.NewTimestampBreaker(circuitbreaker.WindowConfig{
-			WindowSize:     60,               
-			MaxFailures: 0.5,              
-			MinRequests:    10,               
-			ResetTimeout:   10 * time.Second, 
+		http:    &http.Client{Timeout: 5 * time.Second},
+		breaker: circuitbreaker.New(circuitbreaker.Config{
+			MaxFailures:  3,
+			ResetTimeout: 10 * time.Second,
 		}),
 	}
 }
@@ -48,15 +46,18 @@ type PaginationResponse struct {
 	Items         []*CarInfo `json:"items"`
 }
 
-func (c *CarsClient) GetAll(ctx context.Context, page, size int, showAll bool) (*PaginationResponse, error) {
+func (c *CarsClient) GetAll(ctx context.Context, token string, page, size int, showAll bool) (*PaginationResponse, error) {
 	if err := c.breaker.Allow(); err != nil {
 		return nil, ErrUnavailable
 	}
-	url := fmt.Sprintf("%s/api/v1/cars?page=%d&size=%d&showAll=%t", c.baseURL, page, size, showAll)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+
+	u := fmt.Sprintf("%s/api/v1/cars?page=%d&size=%d&showAll=%t", c.baseURL, page, size, showAll)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
 	resp, err := c.http.Do(req)
 	if err != nil {
 		c.breaker.Failure()
@@ -68,7 +69,6 @@ func (c *CarsClient) GetAll(ctx context.Context, page, size int, showAll bool) (
 		c.breaker.Failure()
 		return nil, ErrUnavailable
 	}
-
 	if resp.StatusCode != http.StatusOK {
 		c.breaker.Success()
 		return nil, fmt.Errorf("cars service returned %d", resp.StatusCode)
@@ -83,14 +83,17 @@ func (c *CarsClient) GetAll(ctx context.Context, page, size int, showAll bool) (
 	return &p, nil
 }
 
-func (c *CarsClient) GetByUID(ctx context.Context, uid string) (*CarInfo, error) {
+func (c *CarsClient) GetByUID(ctx context.Context, token, uid string) (*CarInfo, error) {
 	if err := c.breaker.Allow(); err != nil {
 		return nil, ErrUnavailable
 	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/cars/"+uid, nil)
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
 	resp, err := c.http.Do(req)
 	if err != nil {
 		c.breaker.Failure()
@@ -102,7 +105,6 @@ func (c *CarsClient) GetByUID(ctx context.Context, uid string) (*CarInfo, error)
 		c.breaker.Failure()
 		return nil, ErrUnavailable
 	}
-
 	if resp.StatusCode == http.StatusNotFound {
 		c.breaker.Success()
 		return nil, ErrNotFound
@@ -121,23 +123,26 @@ func (c *CarsClient) GetByUID(ctx context.Context, uid string) (*CarInfo, error)
 	return &car, nil
 }
 
-func (c *CarsClient) Reserve(ctx context.Context, uid string) error {
-	return c.postAction(ctx, uid, "reserve")
+func (c *CarsClient) Reserve(ctx context.Context, token, uid string) error {
+	return c.postAction(ctx, token, uid, "reserve")
 }
 
-func (c *CarsClient) Unreserve(ctx context.Context, uid string) error {
-	return c.postAction(ctx, uid, "unreserve")
+func (c *CarsClient) Unreserve(ctx context.Context, token, uid string) error {
+	return c.postAction(ctx, token, uid, "unreserve")
 }
 
-func (c *CarsClient) postAction(ctx context.Context, uid, action string) error {
+func (c *CarsClient) postAction(ctx context.Context, token, uid, action string) error {
 	if err := c.breaker.Allow(); err != nil {
 		return ErrUnavailable
 	}
-	url := fmt.Sprintf("%s/api/v1/cars/%s/%s", c.baseURL, uid, action)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+
+	u := fmt.Sprintf("%s/api/v1/cars/%s/%s", c.baseURL, uid, action)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, nil)
 	if err != nil {
 		return err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
 	resp, err := c.http.Do(req)
 	if err != nil {
 		c.breaker.Failure()
@@ -150,7 +155,6 @@ func (c *CarsClient) postAction(ctx context.Context, uid, action string) error {
 		c.breaker.Failure()
 		return ErrUnavailable
 	}
-
 	if resp.StatusCode == http.StatusNotFound {
 		c.breaker.Success()
 		return ErrNotFound

@@ -28,9 +28,9 @@ func main() {
 	handler := func(ctx context.Context, task queue.Task) error {
 		switch task.Type {
 		case queue.TaskCancelPayment:
-			return payment.Cancel(ctx, task.Payload["paymentUid"])
+			return payment.Cancel(ctx, task.Payload["token"], task.Payload["paymentUid"])
 		case queue.TaskUnreserveCar:
-			return cars.Unreserve(ctx, task.Payload["carUid"])
+			return cars.Unreserve(ctx, task.Payload["token"], task.Payload["carUid"])
 		}
 		return nil
 	}
