@@ -1,5 +1,5 @@
 image:
-  repository: ghcr.io/leurok/ds-lab4/gateway-service
+  repository: ghcr.io/leurok/ds-lab5/gateway-service
   tag: latest
 
 service:
@@ -14,6 +14,17 @@ env:
     value: http://rental-service:8060
   - name: PAYMENT_URL
     value: http://payment-service:8050
+  - name: AUTH_DOMAIN
+    value: "dev-kxjywchogh6bt5jw.us.auth0.com"
+  - name: AUTH_AUDIENCE
+    value: "https://ds-lab5"
+  - name: AUTH_CLIENT_ID
+    value: "WFbON1QQBRIDcycWgTFJIir8qe0LqOQi"
+  - name: AUTH_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: auth-secret
+        key: client-secret
 
 ingress:
   enabled: true

@@ -1,5 +1,5 @@
 image:
-  repository: ghcr.io/leurok/ds-lab4/cars-service
+  repository: ghcr.io/leurok/ds-lab5/cars-service
   tag: latest
 
 service:
