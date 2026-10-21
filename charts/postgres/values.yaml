@@ -1,0 +1,15 @@
+image:
+  repository: library/postgres
+  tag: "13"
+
+auth:
+  username: postgres       
+  password: postgres       
+  database: postgres
+
+storage:
+  size: 5Gi
+  className: ""
+
+service:
+  port: 5432

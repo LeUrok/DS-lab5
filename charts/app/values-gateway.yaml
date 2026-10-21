@@ -1,0 +1,22 @@
+image:
+  repository: ghcr.io/leurok/ds-lab4/gateway-service
+  tag: latest
+
+service:
+  port: 8080
+
+env:
+  - name: PORT
+    value: "8080"
+  - name: CARS_URL
+    value: http://cars-service:8070
+  - name: RENTAL_URL
+    value: http://rental-service:8060
+  - name: PAYMENT_URL
+    value: http://payment-service:8050
+
+ingress:
+  enabled: true
+  className: traefik
+  path: /
+  pathType: Prefix
