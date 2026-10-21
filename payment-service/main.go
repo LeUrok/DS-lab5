@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/LeUrok/DS-lab2/payment-service/internal/api"
+	"github.com/LeUrok/DS-lab2/payment-service/internal/auth"
 	"github.com/LeUrok/DS-lab2/payment-service/internal/config"
 	"github.com/LeUrok/DS-lab2/payment-service/internal/db"
 	"github.com/LeUrok/DS-lab2/payment-service/internal/repository"
@@ -22,6 +23,13 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	issuer := "https://" + cfg.AuthDomain + "/"
+	jwksURL := issuer + ".well-known/jwks.json"
+	mw, err := auth.NewMiddleware(context.Background(), issuer, jwksURL, cfg.AuthAudience)
+	if err != nil {
+		log.Fatalf("failed to init auth middleware: %v", err)
+	}
+
 	pool, err := db.New(ctx, cfg.DBURL())
 	if err != nil {
 		log.Fatalf("failed to connect to db: %v", err)
@@ -31,7 +39,7 @@ func main() {
 	repo := repository.NewPaymentRepository(pool)
 	svc := service.NewPaymentService(repo)
 	h := api.NewPaymentHandler(svc)
-	router := api.NewRouter(h)
+	router := api.NewRouter(h, mw)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,

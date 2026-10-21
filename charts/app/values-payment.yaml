@@ -18,3 +18,7 @@ env:
     value: test
   - name: DB_NAME
     value: payments
+  - name: AUTH_DOMAIN
+    value: "dev-kxjywchogh6bt5jw.us.auth0.com"
+  - name: AUTH_AUDIENCE
+    value: "https://ds-lab5"

@@ -12,6 +12,9 @@ type Config struct {
 	DBUser     string
 	DBPassword string
 	DBName     string
+
+	AuthDomain   string
+	AuthAudience string
 }
 
 func Load() *Config {
@@ -22,6 +25,8 @@ func Load() *Config {
 		DBUser:     getEnv("DB_USER", "program"),
 		DBPassword: getEnv("DB_PASSWORD", "test"),
 		DBName:     getEnv("DB_NAME", "cars"),
+		AuthDomain:   getEnv("AUTH_DOMAIN", ""),
+		AuthAudience: getEnv("AUTH_AUDIENCE", ""),
 	}
 }
 
