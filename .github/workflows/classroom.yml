@@ -96,13 +96,17 @@ jobs:
               --wait --timeout 10m
           done
 
+      - name: Install newman
+        run: npm install -g newman
+
       - name: Run API Tests
-        uses: matt-ball/newman-action@master
-        with:
-          collection: v3/postman/collection.json
-          environment: v3/postman/environment.json
-          delayRequest: 100
-          reporters: '[ "cli" ]'
+        run: |
+          newman run v3/postman/collection.json \
+            -e v3/postman/environment.json \
+            --env-var "password=${{ secrets.AUTH0_PASSWORD }}" \
+            --env-var "clientSecret=${{ secrets.AUTH0_CLIENT_SECRET }}" \
+            --delay-request 100 \
+            --reporters cli
 
       - uses: education/autograding@v1
         id: autograder
